@@ -1,23 +1,21 @@
 import { GoogleGenAI } from "@google/genai";
-import { DrugAnalysisResult } from "../types";
+import { DrugInfo } from "../types";
 
-// User provided API Key applied directly
-const apiKey = "AIzaSyCIrL8x93c8K0aHPGkresn6PynIqvrE7rc";
-
-const ai = new GoogleGenAI({ apiKey: apiKey });
-
-export const analyzeDrugImage = async (base64Data: string, mimeType: string): Promise<DrugAnalysisResult> => {
+export const analyzeDrugImage = async (base64Data: string, mimeType: string, apiKey: string): Promise<DrugInfo[]> => {
   if (!apiKey) {
-    throw new Error("API Key is missing. Please check your configuration.");
+    throw new Error("API Key가 없습니다. 상단 설정에서 API Key를 입력해주세요.");
   }
 
-  // Gemini 2.5 Flash works best when instructions are separated into systemInstruction
+  const ai = new GoogleGenAI({ apiKey: apiKey });
+
+  // Gemini 2.5 Flash instructions updated to request an ARRAY of drugs
   const systemInstruction = `
     당신은 약품 분석 전문 AI 약사입니다.
-    사용자가 제공하는 약품 이미지를 정밀하게 분석하고, Google 검색 도구를 활용하여 교차 검증된 정확한 정보를 제공해야 합니다.
+    사용자가 제공하는 이미지에 포함된 **모든** 약품을 식별하고 분석해야 합니다.
+    이미지에 여러 개의 약품(알약, 포장재 등)이 있다면, 각각에 대한 정보를 개별적으로 추출하여 리스트로 반환하세요.
 
     [임무]
-    이미지에서 다음 정보를 추출하고 검증하세요:
+    이미지에서 각 약품에 대해 다음 정보를 추출하고 검증하세요:
     1. mainIngredientEn: 주성분명 (반드시 영문 표기, 예: Acetaminophen)
     2. productNameEn: 제품명 (영문)
     3. productNameKo: 제품명 (한글)
@@ -25,22 +23,26 @@ export const analyzeDrugImage = async (base64Data: string, mimeType: string): Pr
     5. companyName: 제조사명
 
     [추가 작업]
-    Google 검색을 사용하여 해당 약품의 깨끗한 '공식 이미지 URL'을 찾아 'imageUrl' 필드에 넣으세요.
+    Google 검색을 사용하여 각 약품의 깨끗한 '공식 이미지 URL'을 찾아 'imageUrl' 필드에 넣으세요.
 
     [출력 형식]
-    응답은 오직 아래의 JSON 포맷으로만 작성되어야 합니다. 마크다운 코드 블록(\`\`\`json ... \`\`\`)을 사용하세요.
+    응답은 오직 **JSON 배열(Array)** 포맷으로만 작성되어야 합니다. 마크다운 코드 블록(\`\`\`json ... \`\`\`)을 사용하세요.
     
-    {
-      "mainIngredientEn": "String",
-      "productNameEn": "String",
-      "productNameKo": "String",
-      "dosage": "String",
-      "companyName": "String",
-      "imageUrl": "String"
-    }
+    예시:
+    [
+      {
+        "mainIngredientEn": "String",
+        "productNameEn": "String",
+        "productNameKo": "String",
+        "dosage": "String",
+        "companyName": "String",
+        "imageUrl": "String"
+      },
+      { ... }
+    ]
   `;
 
-  const userPrompt = "이 약품 이미지를 분석하여 JSON 데이터를 생성해주세요.";
+  const userPrompt = "이 이미지에 보이는 모든 약품을 분석하여 JSON 배열 데이터로 생성해주세요.";
 
   try {
     const response = await ai.models.generateContent({
@@ -69,7 +71,6 @@ export const analyzeDrugImage = async (base64Data: string, mimeType: string): Pr
 
     // Extract JSON from potential Markdown code blocks
     let jsonString = text.trim();
-    // Regex to capture content inside ```json ... ``` or just ``` ... ```
     const jsonMatch = jsonString.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
     
     if (jsonMatch) {
@@ -77,7 +78,9 @@ export const analyzeDrugImage = async (base64Data: string, mimeType: string): Pr
     }
 
     try {
-        const result = JSON.parse(jsonString) as DrugAnalysisResult;
+        const parsed = JSON.parse(jsonString);
+        // Ensure result is always an array
+        const result: DrugInfo[] = Array.isArray(parsed) ? parsed : [parsed];
         return result;
     } catch (parseError) {
         console.error("JSON Parse Error:", parseError, "Raw Text:", text);
@@ -86,6 +89,10 @@ export const analyzeDrugImage = async (base64Data: string, mimeType: string): Pr
 
   } catch (error: any) {
     console.error("Gemini Analysis Error:", error);
+    // Handle 403 specifically to give a better error message
+    if (error.message?.includes('403') || error.toString().includes('403')) {
+       throw new Error("API Key가 유효하지 않거나 만료되었습니다. 올바른 키를 입력했는지 확인해주세요.");
+    }
     throw new Error(error.message || "이미지 분석 중 오류가 발생했습니다.");
   }
 };

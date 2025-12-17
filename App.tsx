@@ -4,6 +4,7 @@ import Header from './components/Header';
 import ImageUploader from './components/ImageUploader';
 import StatusBanner from './components/StatusBanner';
 import ResultCard from './components/ResultCard';
+import ApiKeyInput from './components/ApiKeyInput';
 import { AnalyzedImage, StatusMessageState } from './types';
 import { analyzeDrugImage } from './services/geminiService';
 import { Loader2, Play } from 'lucide-react';
@@ -12,6 +13,7 @@ const App: React.FC = () => {
   const [analyzedImages, setAnalyzedImages] = useState<AnalyzedImage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMessage, setStatusMessage] = useState<StatusMessageState | null>(null);
+  const [apiKey, setApiKey] = useState<string>('');
 
   // Helper to read file as Base64
   const readFileAsBase64 = (file: File): Promise<{ base64: string; mimeType: string }> => {
@@ -68,14 +70,17 @@ const App: React.FC = () => {
   }, []);
 
   const startAnalysis = async () => {
+    if (!apiKey) {
+      setStatusMessage({ type: 'error', message: 'API Key가 설정되지 않았습니다. 상단에서 키를 입력하고 저장해주세요.' });
+      return;
+    }
+
     const pendingImages = analyzedImages.filter(img => img.status === 'idle' || img.status === 'error');
     
     if (pendingImages.length === 0) {
       setStatusMessage({ type: 'warning', message: '분석할 대기 중인 이미지가 없습니다.' });
       return;
     }
-
-    // API Key check removed as it is now hardcoded in the service
     
     setIsProcessing(true);
     setStatusMessage({ type: 'info', message: 'Gemini 2.5 Flash 모델로 분석을 시작합니다... (무료 등급 최적화 적용됨)' });
@@ -95,8 +100,8 @@ const App: React.FC = () => {
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
-        // API Call
-        const result = await analyzeDrugImage(image.base64, image.mimeType);
+        // API Call passing the user's apiKey
+        const result = await analyzeDrugImage(image.base64, image.mimeType, apiKey);
         
         // Update success
         setAnalyzedImages(prev => prev.map(img => 
@@ -124,6 +129,9 @@ const App: React.FC = () => {
     <div className="min-h-screen p-4 sm:p-8 flex justify-center font-sans text-gray-900">
       <div className="w-full max-w-4xl bg-white shadow-2xl rounded-2xl p-6 md:p-10 border border-gray-100">
         <Header />
+
+        {/* API Key Input Section */}
+        <ApiKeyInput onApiKeyChange={setApiKey} />
 
         <div className="space-y-8">
           {/* Upload Section */}
