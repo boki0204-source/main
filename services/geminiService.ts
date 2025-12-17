@@ -1,12 +1,11 @@
 import { GoogleGenAI } from "@google/genai";
 import { DrugInfo } from "../types";
 
-export const analyzeDrugImage = async (base64Data: string, mimeType: string, apiKey: string): Promise<DrugInfo[]> => {
-  if (!apiKey) {
-    throw new Error("API Key가 없습니다. 설정에서 API Key를 입력해주세요.");
-  }
+// 제공된 API Key를 상수로 정의합니다.
+const API_KEY = "AIzaSyAlt7Q4z11HURLU2aLTkv0cX76sbPrMv60";
 
-  const ai = new GoogleGenAI({ apiKey: apiKey });
+export const analyzeDrugImage = async (base64Data: string, mimeType: string): Promise<DrugInfo[]> => {
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
 
   // Gemini 2.5 Flash instructions updated to request an ARRAY of drugs
   const systemInstruction = `
@@ -91,7 +90,7 @@ export const analyzeDrugImage = async (base64Data: string, mimeType: string, api
     console.error("Gemini Analysis Error:", error);
     // Handle 403 specifically to give a better error message
     if (error.message?.includes('403') || error.toString().includes('403')) {
-       throw new Error("API Key가 유효하지 않거나 만료되었습니다. 올바른 키를 입력했는지 확인해주세요.");
+       throw new Error("API Key 권한 오류입니다. 키가 만료되었거나 허용되지 않은 요청입니다.");
     }
     throw new Error(error.message || "이미지 분석 중 오류가 발생했습니다.");
   }
