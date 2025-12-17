@@ -1,6 +1,6 @@
 import React from 'react';
 import { AnalyzedImage } from '../types';
-import { Loader2, AlertCircle, CheckCircle, Search, Building2, FlaskConical, ExternalLink, Scale, Pill } from 'lucide-react';
+import { Loader2, AlertCircle, CheckCircle, Search, Building2, FlaskConical, ExternalLink, Scale, Pill, Eye } from 'lucide-react';
 
 interface ResultCardProps {
   item: AnalyzedImage;
@@ -75,7 +75,7 @@ const ResultCard: React.FC<ResultCardProps> = ({ item, index }) => {
               <div className="mb-4 flex items-center justify-between border-b border-gray-100 pb-2">
                  <h4 className="text-sm font-semibold text-gray-500 flex items-center">
                    <Pill className="w-4 h-4 mr-1.5" />
-                   식별된 약품: <span className="text-blue-600 ml-1">{result.length}개</span>
+                   식별된 약품: <span className="text-blue-600 ml-1 font-bold">{result.length}개</span>
                  </h4>
               </div>
 
@@ -89,7 +89,13 @@ const ResultCard: React.FC<ResultCardProps> = ({ item, index }) => {
                         <span className="shrink-0 bg-blue-100 text-blue-700 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shadow-sm mt-0.5">
                           {drugIndex + 1}
                         </span>
-                        <div>
+                        <div className="flex flex-col items-start">
+                          {drug.visualDescription && (
+                            <div className="flex items-center gap-1 mb-1 bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md text-[10px] font-medium border border-gray-200">
+                               <Eye className="w-3 h-3" />
+                               {drug.visualDescription}
+                            </div>
+                          )}
                           <h3 className="text-lg sm:text-xl font-bold text-gray-900 leading-tight">
                             {drug.productNameKo}
                           </h3>

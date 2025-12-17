@@ -5,6 +5,7 @@ export interface DrugInfo {
   dosage: string;           // 용량
   companyName: string;      // 업체명
   imageUrl?: string;        // 이미지 출처 URL
+  visualDescription?: string; // 약품의 외형적 특징 (예: 분홍색 타원형 알약)
 }
 
 export interface AnalyzedImage {
