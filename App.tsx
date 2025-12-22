@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import Header from './components/Header';
@@ -9,12 +10,15 @@ import { analyzeDrugImage } from './services/geminiService';
 import { Loader2, Play, Key, ExternalLink } from 'lucide-react';
 
 // window.aistudio 타입 정의를 위한 확장
+// @google/genai guidelines: Use the pre-configured AIStudio interface for API key management.
 declare global {
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+
   interface Window {
-    aistudio: {
-      hasSelectedApiKey: () => Promise<boolean>;
-      openSelectKey: () => Promise<void>;
-    };
+    aistudio: AIStudio;
   }
 }
 
@@ -28,6 +32,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const checkKey = async () => {
       try {
+        // @google/genai guidelines: Use window.aistudio.hasSelectedApiKey() to check key status.
         const hasKey = await window.aistudio.hasSelectedApiKey();
         setHasApiKey(hasKey);
       } catch (err) {
@@ -40,8 +45,9 @@ const App: React.FC = () => {
 
   const handleSelectKey = async () => {
     try {
+      // @google/genai guidelines: Use window.aistudio.openSelectKey() to trigger key selection dialog.
       await window.aistudio.openSelectKey();
-      // Assume success and proceed per instructions to avoid race conditions
+      // 가이드라인에 따라 키 선택 후 레이스 컨디션을 방지하기 위해 성공으로 가정하고 진행합니다.
       setHasApiKey(true);
     } catch (err) {
       console.error("Failed to open key selector:", err);
@@ -125,15 +131,16 @@ const App: React.FC = () => {
             await new Promise(resolve => setTimeout(resolve, 800));
         }
 
-        const result = await analyzeDrugImage(image.base64, image.mimeType);
+        // 분석 결과에서 약품 리스트와 검색 근거를 모두 가져옵니다.
+        const { drugs, groundingChunks } = await analyzeDrugImage(image.base64, image.mimeType);
         
         setAnalyzedImages(prev => prev.map(img => 
-          img.id === image.id ? { ...img, status: 'success', result } : img
+          img.id === image.id ? { ...img, status: 'success', result: drugs, groundingChunks } : img
         ));
       } catch (error: any) {
         console.error("Analysis failed:", error);
         
-        // Handle specific key error to reset state
+        // @google/genai guidelines: Handle "Requested entity was not found" error to reset API key state.
         if (error.message?.includes('Requested entity was not found')) {
             setHasApiKey(false);
             setStatusMessage({ type: 'error', message: 'API 키가 유효하지 않습니다. 다시 설정해주세요.' });

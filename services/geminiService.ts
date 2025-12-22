@@ -1,11 +1,25 @@
+
 import { GoogleGenAI } from "@google/genai";
-import { DrugInfo } from "../types";
+import { DrugInfo, GroundingChunk } from "../types";
+
+/**
+ * 분석 결과 인터페이스: 약품 정보와 검색 근거를 함께 반환합니다.
+ */
+export interface AnalysisResult {
+  drugs: DrugInfo[];
+  groundingChunks: GroundingChunk[];
+}
 
 /**
  * 분석 서비스: window.aistudio에서 관리되는 최신 API 키를 
  * 호출 시점에 process.env.API_KEY로부터 가져와 사용합니다.
  */
-export const analyzeDrugImage = async (base64Data: string, mimeType: string): Promise<DrugInfo[]> => {
+export const analyzeDrugImage = async (base64Data: string, mimeType: string): Promise<AnalysisResult> => {
+  // API 키 주입 여부를 먼저 확인하여 브라우저의 불친절한 에러를 방지합니다.
+  if (!process.env.API_KEY) {
+    throw new Error("API 키가 아직 설정되지 않았습니다. 메인 화면의 'API 키 선택하기' 버튼을 통해 키를 먼저 설정해주세요.");
+  }
+
   // 호출 직전에 인스턴스를 생성하여 주입된 최신 키를 반영함
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -34,7 +48,8 @@ export const analyzeDrugImage = async (base64Data: string, mimeType: string): Pr
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      // 복잡한 분석 및 검색 활용을 위해 gemini-3-pro-preview 모델 사용
+      model: 'gemini-3-pro-preview',
       contents: {
         parts: [
           { text: userPrompt },
@@ -57,6 +72,9 @@ export const analyzeDrugImage = async (base64Data: string, mimeType: string): Pr
       throw new Error("AI 응답을 생성하지 못했습니다.");
     }
 
+    // Google 검색 근거 URL 추출 (가이드라인 준수)
+    const groundingChunks = (response.candidates?.[0]?.groundingMetadata?.groundingChunks as GroundingChunk[]) || [];
+
     let jsonString = text.trim();
     const jsonMatch = jsonString.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
     if (jsonMatch) {
@@ -65,7 +83,8 @@ export const analyzeDrugImage = async (base64Data: string, mimeType: string): Pr
 
     try {
         const parsed = JSON.parse(jsonString);
-        return Array.isArray(parsed) ? parsed : [parsed];
+        const drugs = Array.isArray(parsed) ? parsed : [parsed];
+        return { drugs, groundingChunks };
     } catch (parseError) {
         console.error("JSON Parse error:", parseError, "Text:", text);
         throw new Error("데이터 해석 중 오류가 발생했습니다.");
@@ -76,7 +95,7 @@ export const analyzeDrugImage = async (base64Data: string, mimeType: string): Pr
     
     // API 키 유효성 문제나 엔티티 오류 발생 시 명시적 에러 전달
     if (error.message?.includes('403') || error.message?.includes('401')) {
-       throw new Error("API 키 권한 오류가 발생했습니다. 키 설정을 다시 확인해주세요.");
+       throw new Error("API 키 권한 오류가 발생했습니다. 결제가 활성화된 프로젝트의 키인지 확인해주세요.");
     }
     
     if (error.message?.includes('Requested entity was not found')) {

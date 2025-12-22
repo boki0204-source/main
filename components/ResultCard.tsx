@@ -1,6 +1,7 @@
+
 import React from 'react';
 import { AnalyzedImage } from '../types';
-import { Loader2, AlertCircle, CheckCircle, Search, Building2, FlaskConical, ExternalLink, Scale, Pill, Eye } from 'lucide-react';
+import { Loader2, AlertCircle, Search, Building2, FlaskConical, ExternalLink, Scale, Pill, Eye } from 'lucide-react';
 
 interface ResultCardProps {
   item: AnalyzedImage;
@@ -8,7 +9,7 @@ interface ResultCardProps {
 }
 
 const ResultCard: React.FC<ResultCardProps> = ({ item, index }) => {
-  const { status, result, error, previewUrl, file } = item;
+  const { status, result, groundingChunks, error, previewUrl, file } = item;
 
   // Status colors
   const borderColor = {
@@ -162,6 +163,32 @@ const ResultCard: React.FC<ResultCardProps> = ({ item, index }) => {
                   </div>
                 ))}
               </div>
+
+              {/* Grounding Reference Links - 가이드라인에 따라 항상 표시 */}
+              {groundingChunks && groundingChunks.length > 0 && (
+                <div className="mt-8 pt-4 border-t border-gray-100 bg-gray-50/50 -mx-4 sm:-mx-6 px-4 sm:px-6 pb-4">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                    <Search className="w-3 h-3" />
+                    분석 참조 출처 (Google Search Grounding)
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {groundingChunks.map((chunk, i) => (
+                      chunk.web && (
+                        <a 
+                          key={i} 
+                          href={chunk.web.uri} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-[11px] bg-white hover:bg-blue-50 text-blue-600 px-2 py-1 rounded border border-gray-200 transition-all flex items-center gap-1 shadow-sm"
+                        >
+                          <span className="max-w-[200px] truncate">{chunk.web.title || '정보 확인'}</span>
+                          <ExternalLink className="w-2.5 h-2.5 opacity-50" />
+                        </a>
+                      )
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

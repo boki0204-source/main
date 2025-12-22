@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Pill, Activity, Zap } from 'lucide-react';
 
@@ -15,7 +16,7 @@ const Header: React.FC = () => {
         </div>
         <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-full border border-blue-100 shadow-sm">
           <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
-          <span className="text-xs font-semibold text-gray-600">Powered by Gemini 2.5 Flash</span>
+          <span className="text-xs font-semibold text-gray-600">Powered by Gemini 3 Pro</span>
         </div>
       </div>
       <p className="text-gray-500 text-lg flex items-center gap-2 mt-4 sm:mt-2">
