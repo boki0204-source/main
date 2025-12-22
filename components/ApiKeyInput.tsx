@@ -1,2 +1,1 @@
-// This file is no longer needed and should be removed.
-export default {};
+DELETE_FILE
