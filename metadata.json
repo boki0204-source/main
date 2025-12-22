@@ -1,6 +1,6 @@
 {
   "name": "MediScan AI",
-  "description": "A multi-image drug analysis tool powered by Gemini 3 Pro. Upload or take images of medication to identify them, get detailed usage instructions, and find official reference images via Google Search.",
+  "description": "A multi-image drug analysis tool powered by Gemini 2.5 Flash. Upload or take images of medication to identify them, get detailed usage instructions, and find official reference images via Google Search.",
   "requestFramePermissions": [
     "camera"
   ]

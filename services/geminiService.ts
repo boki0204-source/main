@@ -8,13 +8,11 @@ export interface AnalysisResult {
 }
 
 export const analyzeDrugImage = async (base64Data: string, mimeType: string): Promise<AnalysisResult> => {
-  // Always obtain the API key exclusively from the environment variable `process.env.API_KEY`.
-  // Do not hardcode API keys directly in the code.
+  // The API key is securely provided by the platform environment.
   if (!process.env.API_KEY) {
-    throw new Error("API key is not configured. Please set the API_KEY environment variable.");
+    throw new Error("API key is not configured.");
   }
 
-  // Initialize GoogleGenAI with the API key from environment variables.
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const systemInstruction = `
@@ -36,9 +34,8 @@ export const analyzeDrugImage = async (base64Data: string, mimeType: string): Pr
   `;
 
   try {
-    // gemini-3-flash-preview 모델은 이미지 분석 능력이 뛰어나며 추가 인증 팝업을 방지합니다.
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.5-flash',
       contents: {
         parts: [
           { text: "이미지의 약품들을 식별하여 JSON 배열로 상세 정보를 출력해 주세요." },
@@ -62,6 +59,7 @@ export const analyzeDrugImage = async (base64Data: string, mimeType: string): Pr
     const groundingChunks = (response.candidates?.[0]?.groundingMetadata?.groundingChunks as GroundingChunk[]) || [];
 
     let jsonString = text.trim();
+    // Remove markdown code blocks if present
     const jsonMatch = jsonString.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
     if (jsonMatch) jsonString = jsonMatch[1];
 
