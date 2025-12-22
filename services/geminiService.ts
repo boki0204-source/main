@@ -2,11 +2,11 @@ import { GoogleGenAI } from "@google/genai";
 import { DrugInfo } from "../types";
 
 /**
- * 분석 서비스: 환경 변수에서 제공되는 안정적인 API Key를 사용합니다.
- * 이 방식은 키 만료 걱정 없이 지속적인 사용이 가능합니다.
+ * 분석 서비스: window.aistudio에서 관리되는 최신 API 키를 
+ * 호출 시점에 process.env.API_KEY로부터 가져와 사용합니다.
  */
 export const analyzeDrugImage = async (base64Data: string, mimeType: string): Promise<DrugInfo[]> => {
-  // 시스템에서 제공하는 관리형 API Key를 사용합니다.
+  // 호출 직전에 인스턴스를 생성하여 주입된 최신 키를 반영함
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const systemInstruction = `
@@ -30,11 +30,11 @@ export const analyzeDrugImage = async (base64Data: string, mimeType: string): Pr
     응답은 오직 **JSON 배열(Array)** 포맷으로만 작성되어야 합니다. 마크다운 코드 블록(\`\`\`json ... \`\`\`)을 사용하세요.
   `;
 
-  const userPrompt = "이 이미지에 보이는 모든 약품을 하나도 빠짐없이 각각 분석하여 JSON 배열 데이터로 생성해주세요. 각 약품의 외형 묘사를 상세히 포함해주세요.";
+  const userPrompt = "이미지에 보이는 모든 약품을 식별하고, 각 약품의 외형 묘사를 포함하여 JSON 배열로 상세 분석해주세요.";
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview', // 최신 고성능 모델 사용
+      model: 'gemini-3-flash-preview',
       contents: {
         parts: [
           { text: userPrompt },
@@ -54,7 +54,7 @@ export const analyzeDrugImage = async (base64Data: string, mimeType: string): Pr
 
     const text = response.text;
     if (!text) {
-      throw new Error("AI로부터 응답을 받지 못했습니다.");
+      throw new Error("AI 응답을 생성하지 못했습니다.");
     }
 
     let jsonString = text.trim();
@@ -67,15 +67,22 @@ export const analyzeDrugImage = async (base64Data: string, mimeType: string): Pr
         const parsed = JSON.parse(jsonString);
         return Array.isArray(parsed) ? parsed : [parsed];
     } catch (parseError) {
-        console.error("JSON 파싱 오류:", parseError, "원본:", text);
-        throw new Error("분석 데이터를 처리하는 중 오류가 발생했습니다.");
+        console.error("JSON Parse error:", parseError, "Text:", text);
+        throw new Error("데이터 해석 중 오류가 발생했습니다.");
     }
 
   } catch (error: any) {
-    console.error("Gemini 분석 오류:", error);
+    console.error("Gemini service error:", error);
+    
+    // API 키 유효성 문제나 엔티티 오류 발생 시 명시적 에러 전달
     if (error.message?.includes('403') || error.message?.includes('401')) {
-       throw new Error("API 권한 문제가 발생했습니다. 시스템 관리자에게 문의하세요.");
+       throw new Error("API 키 권한 오류가 발생했습니다. 키 설정을 다시 확인해주세요.");
     }
+    
+    if (error.message?.includes('Requested entity was not found')) {
+       throw new Error("Requested entity was not found"); // App.tsx에서 캐치하여 키 재설정 유도
+    }
+
     throw new Error(error.message || "이미지 분석 중 오류가 발생했습니다.");
   }
 };

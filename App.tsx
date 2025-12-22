@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import Header from './components/Header';
 import ImageUploader from './components/ImageUploader';
@@ -6,14 +6,48 @@ import StatusBanner from './components/StatusBanner';
 import ResultCard from './components/ResultCard';
 import { AnalyzedImage, StatusMessageState } from './types';
 import { analyzeDrugImage } from './services/geminiService';
-import { Loader2, Play } from 'lucide-react';
+import { Loader2, Play, Key, ExternalLink } from 'lucide-react';
+
+// window.aistudio 타입 정의를 위한 확장
+declare global {
+  interface Window {
+    aistudio: {
+      hasSelectedApiKey: () => Promise<boolean>;
+      openSelectKey: () => Promise<void>;
+    };
+  }
+}
 
 const App: React.FC = () => {
   const [analyzedImages, setAnalyzedImages] = useState<AnalyzedImage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMessage, setStatusMessage] = useState<StatusMessageState | null>(null);
-  
-  // Helper to read file as Base64
+  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
+
+  // Check for API key on mount
+  useEffect(() => {
+    const checkKey = async () => {
+      try {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        setHasApiKey(hasKey);
+      } catch (err) {
+        console.error("API Key check failed:", err);
+        setHasApiKey(false);
+      }
+    };
+    checkKey();
+  }, []);
+
+  const handleSelectKey = async () => {
+    try {
+      await window.aistudio.openSelectKey();
+      // Assume success and proceed per instructions to avoid race conditions
+      setHasApiKey(true);
+    } catch (err) {
+      console.error("Failed to open key selector:", err);
+    }
+  };
+
   const readFileAsBase64 = (file: File): Promise<{ base64: string; mimeType: string }> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -64,7 +98,7 @@ const App: React.FC = () => {
     }
 
     setAnalyzedImages((prev) => [...prev, ...newImages]);
-    setStatusMessage({ type: 'info', message: `${newImages.length}개의 이미지가 추가되었습니다. 분석을 시작하세요.` });
+    setStatusMessage({ type: 'info', message: `${newImages.length}개의 이미지가 추가되었습니다.` });
   }, []);
 
   const startAnalysis = async () => {
@@ -76,32 +110,37 @@ const App: React.FC = () => {
     }
     
     setIsProcessing(true);
-    setStatusMessage({ type: 'info', message: 'Gemini 2.5 Flash 모델로 분석을 시작합니다... (무료 등급 최적화 적용됨)' });
+    setStatusMessage({ type: 'info', message: '이미지 분석을 시작합니다...' });
 
-    // Process sequentially to avoid rate limits and provide better UX for sequential updates
     for (const image of analyzedImages) {
-      if (image.status === 'success') continue; // Skip already done
+      if (image.status === 'success') continue;
 
-      // Update status to analyzing
       setAnalyzedImages(prev => prev.map(img => 
         img.id === image.id ? { ...img, status: 'analyzing', error: undefined } : img
       ));
 
       try {
-        // Add a small delay (1s) to prevent hitting rate limits (429) on the Free Tier
+        // Sequentially process with small delay for stability
         if (analyzedImages.indexOf(image) > 0) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise(resolve => setTimeout(resolve, 800));
         }
 
-        // API Call (Key is now handled internally in the service)
         const result = await analyzeDrugImage(image.base64, image.mimeType);
         
-        // Update success
         setAnalyzedImages(prev => prev.map(img => 
           img.id === image.id ? { ...img, status: 'success', result } : img
         ));
       } catch (error: any) {
-        // Update error
+        console.error("Analysis failed:", error);
+        
+        // Handle specific key error to reset state
+        if (error.message?.includes('Requested entity was not found')) {
+            setHasApiKey(false);
+            setStatusMessage({ type: 'error', message: 'API 키가 유효하지 않습니다. 다시 설정해주세요.' });
+            setIsProcessing(false);
+            return;
+        }
+
         setAnalyzedImages(prev => prev.map(img => 
           img.id === image.id ? { ...img, status: 'error', error: error.message } : img
         ));
@@ -109,7 +148,7 @@ const App: React.FC = () => {
     }
 
     setIsProcessing(false);
-    setStatusMessage({ type: 'success', message: '모든 분석 작업이 완료되었습니다.' });
+    setStatusMessage({ type: 'success', message: '분석이 완료되었습니다.' });
   };
 
   const clearAll = () => {
@@ -118,19 +157,63 @@ const App: React.FC = () => {
     setStatusMessage(null);
   };
 
+  // 1. Loading State
+  if (hasApiKey === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+      </div>
+    );
+  }
+
+  // 2. Key Selection Required State
+  if (hasApiKey === false) {
+    return (
+      <div className="min-h-screen p-4 flex items-center justify-center bg-gray-50">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 border border-gray-100 text-center">
+          <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Key className="w-8 h-8 text-blue-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-3">API 키 설정 필요</h2>
+          <p className="text-gray-500 mb-8 leading-relaxed">
+            MediScan AI를 사용하려면 Gemini API 키가 필요합니다.<br/>
+            아래 버튼을 눌러 유효한 API 키를 선택해주세요.
+          </p>
+          
+          <button
+            onClick={handleSelectKey}
+            className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
+          >
+            <Key className="w-5 h-5" />
+            API 키 선택하기
+          </button>
+          
+          <a 
+            href="https://ai.google.dev/gemini-api/docs/billing" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 mt-6 text-xs text-gray-400 hover:text-blue-500 transition-colors"
+          >
+            결제 및 키 발급 안내 확인하기
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  // 3. Main App State
   return (
     <div className="min-h-screen p-4 sm:p-8 flex justify-center font-sans text-gray-900">
       <div className="w-full max-w-4xl bg-white shadow-2xl rounded-2xl p-6 md:p-10 border border-gray-100">
         <Header />
 
         <div className="space-y-8">
-          {/* Upload Section */}
           <div className="space-y-4">
              <ImageUploader onFilesSelected={handleFilesSelected} disabled={isProcessing} />
              <StatusBanner status={statusMessage} />
           </div>
 
-          {/* Action Buttons */}
           {analyzedImages.length > 0 && (
             <div className="flex gap-4">
               <button
@@ -153,7 +236,7 @@ const App: React.FC = () => {
                 ) : (
                   <>
                     <Play className="w-5 h-5 mr-2 fill-current" />
-                    {analyzedImages.some(i => i.status === 'success') ? '나머지 항목 분석' : '분석 시작'}
+                    {analyzedImages.some(i => i.status === 'success') ? '나머지 분석' : '분석 시작'}
                   </>
                 )}
               </button>
@@ -168,7 +251,6 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {/* Results List */}
           {analyzedImages.length > 0 && (
             <div className="space-y-6 pt-6 border-t border-gray-100">
                <div className="flex items-center justify-between">
@@ -185,7 +267,7 @@ const App: React.FC = () => {
           
           {analyzedImages.length === 0 && !statusMessage && (
             <div className="text-center py-10 text-gray-400 border-t border-gray-100 mt-6">
-              <p>이미지를 업로드하면 분석 결과가 여기에 표시됩니다.</p>
+              <p>약품 사진을 올리면 AI가 분석을 시작합니다.</p>
             </div>
           )}
         </div>
