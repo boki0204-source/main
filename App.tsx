@@ -7,10 +7,10 @@ import StatusBanner from './components/StatusBanner';
 import ResultCard from './components/ResultCard';
 import { AnalyzedImage, StatusMessageState } from './types';
 import { analyzeDrugImage } from './services/geminiService';
-import { Loader2, Play, Key, ExternalLink } from 'lucide-react';
+import { Loader2, Play, Key, ExternalLink, ShieldCheck } from 'lucide-react';
 
 // window.aistudio 타입 정의를 위한 확장
-// @google/genai guidelines: Use the pre-configured AIStudio interface for API key management.
+// All declarations of 'aistudio' must have identical modifiers, so making it optional to match global environment.
 declare global {
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
@@ -18,7 +18,7 @@ declare global {
   }
 
   interface Window {
-    aistudio: AIStudio;
+    aistudio?: AIStudio;
   }
 }
 
@@ -32,9 +32,13 @@ const App: React.FC = () => {
   useEffect(() => {
     const checkKey = async () => {
       try {
-        // @google/genai guidelines: Use window.aistudio.hasSelectedApiKey() to check key status.
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        setHasApiKey(hasKey);
+        if (window.aistudio) {
+          const hasKey = await window.aistudio.hasSelectedApiKey();
+          setHasApiKey(hasKey);
+        } else {
+          // If aistudio is not present, check if process.env.API_KEY is already injected
+          setHasApiKey(!!process.env.API_KEY);
+        }
       } catch (err) {
         console.error("API Key check failed:", err);
         setHasApiKey(false);
@@ -45,10 +49,16 @@ const App: React.FC = () => {
 
   const handleSelectKey = async () => {
     try {
-      // @google/genai guidelines: Use window.aistudio.openSelectKey() to trigger key selection dialog.
-      await window.aistudio.openSelectKey();
-      // 가이드라인에 따라 키 선택 후 레이스 컨디션을 방지하기 위해 성공으로 가정하고 진행합니다.
-      setHasApiKey(true);
+      if (window.aistudio) {
+        await window.aistudio.openSelectKey();
+        // Assume success after triggering dialog to avoid race conditions
+        setHasApiKey(true);
+      } else {
+        setStatusMessage({ 
+          type: 'error', 
+          message: 'API 키 선택 도구를 사용할 수 없는 환경입니다. 환경 변수를 확인해주세요.' 
+        });
+      }
     } catch (err) {
       console.error("Failed to open key selector:", err);
     }
@@ -126,12 +136,10 @@ const App: React.FC = () => {
       ));
 
       try {
-        // Sequentially process with small delay for stability
         if (analyzedImages.indexOf(image) > 0) {
             await new Promise(resolve => setTimeout(resolve, 800));
         }
 
-        // 분석 결과에서 약품 리스트와 검색 근거를 모두 가져옵니다.
         const { drugs, groundingChunks } = await analyzeDrugImage(image.base64, image.mimeType);
         
         setAnalyzedImages(prev => prev.map(img => 
@@ -140,10 +148,9 @@ const App: React.FC = () => {
       } catch (error: any) {
         console.error("Analysis failed:", error);
         
-        // @google/genai guidelines: Handle "Requested entity was not found" error to reset API key state.
         if (error.message?.includes('Requested entity was not found')) {
             setHasApiKey(false);
-            setStatusMessage({ type: 'error', message: 'API 키가 유효하지 않습니다. 다시 설정해주세요.' });
+            setStatusMessage({ type: 'error', message: 'API 키가 유효하지 않거나 만료되었습니다. 다시 설정해주세요.' });
             setIsProcessing(false);
             return;
         }
@@ -164,7 +171,6 @@ const App: React.FC = () => {
     setStatusMessage(null);
   };
 
-  // 1. Loading State
   if (hasApiKey === null) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -173,7 +179,6 @@ const App: React.FC = () => {
     );
   }
 
-  // 2. Key Selection Required State
   if (hasApiKey === false) {
     return (
       <div className="min-h-screen p-4 flex items-center justify-center bg-gray-50">
@@ -181,27 +186,31 @@ const App: React.FC = () => {
           <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6">
             <Key className="w-8 h-8 text-blue-600" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-3">API 키 설정 필요</h2>
+          <h2 className="text-2xl font-bold text-gray-800 mb-3">API 키 활성화</h2>
           <p className="text-gray-500 mb-8 leading-relaxed">
-            MediScan AI를 사용하려면 Gemini API 키가 필요합니다.<br/>
-            아래 버튼을 눌러 유효한 API 키를 선택해주세요.
+            제공해주신 API 키를 사용하려면 아래 버튼을 클릭하여 <br/>
+            구글의 공식 보안 인증 및 키 선택 절차를 완료해야 합니다.
           </p>
           
           <button
             onClick={handleSelectKey}
-            className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
+            className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 mb-4"
           >
-            <Key className="w-5 h-5" />
-            API 키 선택하기
+            <ShieldCheck className="w-5 h-5" />
+            API 키 인증 및 적용하기
           </button>
+          
+          <p className="text-xs text-gray-400 mb-6">
+            보안을 위해 키를 코드에 직접 입력하지 않고 인증 도구를 통해 연결합니다.
+          </p>
           
           <a 
             href="https://ai.google.dev/gemini-api/docs/billing" 
             target="_blank" 
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 mt-6 text-xs text-gray-400 hover:text-blue-500 transition-colors"
+            className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium transition-colors"
           >
-            결제 및 키 발급 안내 확인하기
+            API 키 관리 가이드 확인
             <ExternalLink className="w-3 h-3" />
           </a>
         </div>
@@ -209,7 +218,6 @@ const App: React.FC = () => {
     );
   }
 
-  // 3. Main App State
   return (
     <div className="min-h-screen p-4 sm:p-8 flex justify-center font-sans text-gray-900">
       <div className="w-full max-w-4xl bg-white shadow-2xl rounded-2xl p-6 md:p-10 border border-gray-100">
@@ -274,7 +282,7 @@ const App: React.FC = () => {
           
           {analyzedImages.length === 0 && !statusMessage && (
             <div className="text-center py-10 text-gray-400 border-t border-gray-100 mt-6">
-              <p>약품 사진을 올리면 AI가 분석을 시작합니다.</p>
+              <p>약품 사진을 올리거나 카메라로 찍으면 AI가 분석을 시작합니다.</p>
             </div>
           )}
         </div>

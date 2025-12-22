@@ -47,9 +47,9 @@ export const analyzeDrugImage = async (base64Data: string, mimeType: string): Pr
   const userPrompt = "이미지에 보이는 모든 약품을 식별하고, 각 약품의 외형 묘사를 포함하여 JSON 배열로 상세 분석해주세요.";
 
   try {
+    // 분석 및 검색 활용을 위해 gemini-3-pro-image-preview 모델 사용 (이미지 분석 및 검색 근거 활용 시 권장됨)
     const response = await ai.models.generateContent({
-      // 복잡한 분석 및 검색 활용을 위해 gemini-3-pro-preview 모델 사용
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3-pro-image-preview',
       contents: {
         parts: [
           { text: userPrompt },
