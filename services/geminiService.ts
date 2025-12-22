@@ -8,12 +8,13 @@ export interface AnalysisResult {
 }
 
 export const analyzeDrugImage = async (base64Data: string, mimeType: string): Promise<AnalysisResult> => {
-  // The API key is securely provided by the platform environment.
-  if (!process.env.API_KEY) {
-    throw new Error("API key is not configured.");
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    throw new Error("API Key가 설정되지 않았습니다. 환경 변수를 확인해주세요.");
   }
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // Use the high-performance Gemini 3 Pro model for medical accuracy
+  const ai = new GoogleGenAI({ apiKey });
 
   const systemInstruction = `
     당신은 약품 분석 전문 AI 약사입니다.
@@ -35,7 +36,7 @@ export const analyzeDrugImage = async (base64Data: string, mimeType: string): Pr
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-pro-preview',
       contents: {
         parts: [
           { text: "이미지의 약품들을 식별하여 JSON 배열로 상세 정보를 출력해 주세요." },
@@ -70,7 +71,7 @@ export const analyzeDrugImage = async (base64Data: string, mimeType: string): Pr
           groundingChunks 
         };
     } catch (e) {
-        throw new Error("데이터 해석 오류가 발생했습니다. 다시 시도해 주세요.");
+        throw new Error("데이터 해석 중 오류가 발생했습니다. 이미지를 다시 촬영해 주세요.");
     }
 
   } catch (error: any) {
