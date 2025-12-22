@@ -8,16 +8,14 @@ export interface AnalysisResult {
 }
 
 export const analyzeDrugImage = async (base64Data: string, mimeType: string): Promise<AnalysisResult> => {
-  // 사용자의 명시적인 요청에 따라 API 키를 코드에 직접 삽입합니다.
-  // 이 방식은 보안상 매우 취약하며 `@google/genai` 가이드라인에서 권장하지 않습니다.
-  const apiKey = "AIzaSyAlt7Q4z11HURLU2aLTkv0cX76sbPrMv60";
-  
-  // API 키가 직접 삽입되었으므로 환경 변수 검사는 불필요합니다.
-  // if (!apiKey) {
-  //   throw new Error("시스템에 API 키가 설정되지 않았습니다.");
-  // }
+  // Always obtain the API key exclusively from the environment variable `process.env.API_KEY`.
+  // Do not hardcode API keys directly in the code.
+  if (!process.env.API_KEY) {
+    throw new Error("API key is not configured. Please set the API_KEY environment variable.");
+  }
 
-  const ai = new GoogleGenAI({ apiKey });
+  // Initialize GoogleGenAI with the API key from environment variables.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const systemInstruction = `
     당신은 약품 분석 전문 AI 약사입니다.
