@@ -63,7 +63,7 @@ const App: React.FC = () => {
     if (pendingImages.length === 0) return;
     
     setIsProcessing(true);
-    setStatusMessage({ type: 'info', message: 'Gemini AI가 제공된 API 키를 사용하여 약품을 정밀 분석 중입니다...' });
+    setStatusMessage({ type: 'info', message: 'Gemini AI가 약품을 정밀 분석하고 있습니다...' });
 
     for (const image of analyzedImages) {
       if (image.status === 'success') continue;
@@ -82,7 +82,7 @@ const App: React.FC = () => {
         let errorMessage = error.message || "이미지 분석 중 오류가 발생했습니다.";
         
         if (error.message?.includes('403') || error.message?.includes('API key')) {
-          errorMessage = "입력된 API 키가 유효하지 않거나 권한이 없습니다. 환경 설정을 확인해주세요.";
+          errorMessage = "API 키가 유효하지 않거나 권한이 없습니다. 환경 설정을 확인해주세요.";
         }
 
         setAnalyzedImages(prev => prev.map(img => 
@@ -92,10 +92,11 @@ const App: React.FC = () => {
     }
 
     setIsProcessing(false);
-    setStatusMessage({ type: 'success', message: '분석 프로세스가 종료되었습니다.' });
+    setStatusMessage({ type: 'success', message: '분석이 완료되었습니다.' });
   };
 
   const clearAll = () => {
+    if (isProcessing) return;
     setAnalyzedImages([]);
     setStatusMessage(null);
   };
@@ -128,7 +129,7 @@ const App: React.FC = () => {
                 {isProcessing ? (
                   <>
                     <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    분석 중...
+                    분석 진행 중...
                   </>
                 ) : (
                   <>
@@ -168,7 +169,7 @@ const App: React.FC = () => {
           {analyzedImages.length === 0 && !statusMessage && (
             <div className="text-center py-16 bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
               <p className="text-slate-400 font-medium">약품 사진을 업로드하거나 촬영하여 분석을 시작하세요.</p>
-              <p className="text-xs text-slate-300 mt-2">제공된 API 키를 통해 정밀 분석이 수행됩니다.</p>
+              <p className="text-[10px] text-slate-300 mt-4">AI 분석 결과는 참고용이며, 정확한 복약 지도는 의사나 약사에게 문의하세요.</p>
             </div>
           )}
         </div>
